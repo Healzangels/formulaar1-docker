@@ -1,0 +1,11 @@
+# Keep real config (with API keys / qBit creds) out of version control
+appsettings.json
+
+# .NET build artifacts (in case you clone Formulaar1 source alongside)
+bin/
+obj/
+*.user
+
+# OS cruft
+.DS_Store
+Thumbs.db
