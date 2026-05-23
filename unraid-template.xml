@@ -21,7 +21,7 @@ Then in AutoBrr add a Sonarr-type client pointing at http://&lt;this-host&gt;:50
   <Category>MediaApp:Other Downloaders:</Category>
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/Healzangels/formulaar1-docker/main/unraid-template.xml</TemplateURL>
-  <Icon/>
+  <Icon>https://raw.githubusercontent.com/Healzangels/formulaar1-docker/main/unraid/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
