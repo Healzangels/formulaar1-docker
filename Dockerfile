@@ -11,7 +11,7 @@
 # lookups. See https://github.com/Healzangels/Formulaar1/tree/fix/clearlogo-tolerance.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-ARG FORMULAAR1_REF=v0.5.0-fix10
+ARG FORMULAAR1_REF=v0.5.0-fix11
 ARG FORMULAAR1_REPO=https://github.com/Healzangels/Formulaar1.git
 WORKDIR /src
 
@@ -37,13 +37,25 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/ ./
 
+# Drop privileges at runtime via an entrypoint script. PUID/PGID env vars
+# (defaults 99:100 = Unraid nobody:users) control the runtime UID so the
+# container fits cleanly into the *arr permission model -- any dir/file
+# the hardlink monitor creates will be owned by 99:100, and Sonarr running
+# as the same UID can move/import files out of it without chmod
+# gymnastics. Override PUID/PGID in your Unraid template or compose file
+# if you run on a non-Unraid host with different conventions.
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Listen on all interfaces; TLS is terminated upstream (NPM/Cloudflare) and
 # AutoBrr talks to it on the LAN.
 ENV ASPNETCORE_URLS=http://0.0.0.0:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV PUID=99
+ENV PGID=100
 
 EXPOSE 5000
 
 # appsettings.json is bind-mounted at runtime, so config edits don't rebuild.
-ENTRYPOINT ["./Formulaar1"]
+ENTRYPOINT ["/entrypoint.sh"]
