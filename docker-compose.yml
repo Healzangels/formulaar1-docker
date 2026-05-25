@@ -1,14 +1,14 @@
 services:
   formulaar1:
     container_name: formulaar1
-    image: healzangels/formulaar1:v0.5.0-fix5
+    image: healzangels/formulaar1:v0.5.0-fix6
     # To build locally instead of pulling (e.g. testing a Dockerfile change
     # before tagging a release), comment out `image:` above and uncomment:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
     #   args:
-    #     FORMULAAR1_REF: v0.5.0-fix5
+    #     FORMULAAR1_REF: v0.5.0-fix6
     restart: unless-stopped
     environment:
       - PUID=99                       # Unraid 'nobody'
