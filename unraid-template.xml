@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>formulaar1</Name>
-  <Repository>healzangels/formulaar1:v0.5.0-fix11</Repository>
+  <Repository>healzangels/formulaar1:v0.5.0-fix12</Repository>
   <Registry>https://hub.docker.com/r/healzangels/formulaar1</Registry>
   <Network>bridge</Network>
   <MyIP/>
