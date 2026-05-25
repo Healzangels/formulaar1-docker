@@ -3,17 +3,22 @@
 ############################
 # Stage 1 - build from src #
 ############################
-# Build from source against a known upstream tag so the image is reproducible
-# and we aren't trusting whatever the latest release artifact happens to be.
+# Build from source against a known tag so the image is reproducible. We build
+# from the Healzangels fork rather than upstream because upstream v0.5.0 is
+# broken on current Sonarr -- the bundled APIv3SonarrDotcore NuGet client has
+# a closed MediaCoverTypes enum that throws on "clearlogo" (Sonarr v4 schema).
+# The fork patches Program.cs to bypass the broken deserializer for series
+# lookups. See https://github.com/Healzangels/Formulaar1/tree/fix/clearlogo-tolerance.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-ARG FORMULAAR1_REF=v0.5.0
+ARG FORMULAAR1_REF=v0.5.0-clearlogo-fix1
+ARG FORMULAAR1_REPO=https://github.com/Healzangels/Formulaar1.git
 WORKDIR /src
 
 # Clone the tagged source (git is preinstalled on the SDK image). Fall back to
 # default branch if the tag move/rename ever breaks the shallow fetch.
-RUN git clone --depth 1 --branch ${FORMULAAR1_REF} https://github.com/Jimmy062006/Formulaar1.git . \
- || git clone --depth 1 https://github.com/Jimmy062006/Formulaar1.git .
+RUN git clone --depth 1 --branch ${FORMULAAR1_REF} ${FORMULAAR1_REPO} . \
+ || git clone --depth 1 ${FORMULAAR1_REPO} .
 
 # Target the app csproj directly so the Formulaar1.Tests project is excluded
 # from the publish output.
