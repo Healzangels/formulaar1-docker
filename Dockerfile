@@ -11,7 +11,7 @@
 # lookups. See https://github.com/Healzangels/Formulaar1/tree/fix/clearlogo-tolerance.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-ARG FORMULAAR1_REF=v0.5.0-fix24
+ARG FORMULAAR1_REF=v0.5.0-fix25
 ARG FORMULAAR1_REPO=https://github.com/Healzangels/Formulaar1.git
 WORKDIR /src
 
