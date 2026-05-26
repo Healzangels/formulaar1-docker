@@ -19,7 +19,7 @@ Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch
 support) by the GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
 
 Tags:
-- `healzangels/formulaar1:v0.5.0-fixNN` — built from a specific fork tag (immutable, recommended for production pins)
+- `healzangels/formulaar1:vX.Y.Z` — built from a specific fork tag (immutable, recommended for production pins). Current stable is `:v1.0.0`.
 - `healzangels/formulaar1:latest` — tip of `main` here, currently rolls to whatever the latest fix tag is
 - `healzangels/formulaar1:sha-<short>` — every commit on `main` gets a SHA tag for surgical rollbacks
 

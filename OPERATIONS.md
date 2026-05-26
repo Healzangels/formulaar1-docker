@@ -108,7 +108,7 @@ the upstream design.
 ```json
 {
   "status": "ok",
-  "version": "v0.5.0-fix28",
+  "version": "v1.0.0",
   "uptimeSeconds": 12345,
   "torrentClient": "qBittorrent",
   "sonarrConfigured": true,
@@ -214,7 +214,7 @@ Look for these prefixes when reading logs:
 
 ### Pin to a specific version
 
-In your Unraid template / docker-compose, set the image tag to `healzangels/formulaar1:v0.5.0-fixNN` instead of `:latest`. The image is then immutable — no surprise updates.
+In your Unraid template / docker-compose, set the image tag to a specific version like `healzangels/formulaar1:v1.0.0` instead of `:latest`. The image is then immutable — no surprise updates.
 
 ### See what's currently in flight
 
