@@ -13,12 +13,19 @@ Pipeline: `AutoBrr → Formulaar1 → Sonarr`
 ## Image
 
 Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch
-(`linux/amd64`, `linux/arm64`), built from upstream tagged source by the
-GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
+(`linux/amd64`, `linux/arm64`), built from the
+[`Healzangels/Formulaar1` fork](https://github.com/Healzangels/Formulaar1)
+(which patches upstream v0.5.0 for Sonarr v4 compatibility and qBit 5.x
+support) by the GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
 
 Tags:
-- `healzangels/formulaar1:v0.5.0` — built from upstream `v0.5.0`
-- `healzangels/formulaar1:latest` — tip of `main` here (whatever upstream ref `DEFAULT_FORMULAAR1_REF` points at in the workflow)
+- `healzangels/formulaar1:v0.5.0-fixNN` — built from a specific fork tag (immutable, recommended for production pins)
+- `healzangels/formulaar1:latest` — tip of `main` here, currently rolls to whatever the latest fix tag is
+- `healzangels/formulaar1:sha-<short>` — every commit on `main` gets a SHA tag for surgical rollbacks
+
+**For a homelab deploy I recommend pinning to a `v*` tag** — that way the image only changes when you choose to update it.
+
+For day-to-day operation, log line meaning, config reference, and troubleshooting, see [OPERATIONS.md](OPERATIONS.md).
 
 ## Quick start (Unraid)
 
@@ -45,15 +52,22 @@ docker logs -f formulaar1
 
 On startup you should see:
 ```
+[Config] Import mode: manualimport
 Detected qBittorrent Client, attempting to login
+[QBit] Login OK, got session cookie 'QBT_SID_8080' (32 chars)
 Logged in to <version>
+[F1API] Loaded 24 circuits for current season.
+[Hardlinking] Enabled — timer will start when a release is queued.
 Now listening on: http://0.0.0.0:5000
 ```
 
-If qBit login fails: (a) wrong port — try 8080, (b) WebUI creds, or
-(c) qBittorrent's "Bypass authentication" whitelist doesn't cover the docker
-bridge subnet (`cmacproxy` is `172.18.0.0/16`). Formulaar1 will arrive at qBit
-as a `172.18.x.x` source IP, not the host LAN IP.
+If qBit login fails, the log will tell you exactly which way (added in
+fix20). Common cases:
+- `[QBit] Login refused: HTTP 401/403 ...` — wrong creds, or qBit's auth-bypass whitelist doesn't cover the docker bridge subnet (Formulaar1 arrives as `172.18.x.x`, not your host LAN IP)
+- `[QBit] Login failed (bad credentials?)` — wrong username/password
+- Wrong port — try 8080 if 8585 fails (or whatever your qBit WebUI port actually is)
+
+See [OPERATIONS.md](OPERATIONS.md) for the full log line catalog and troubleshooting matrix.
 
 ### 3. Wire AutoBrr
 
