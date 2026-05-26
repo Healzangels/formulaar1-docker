@@ -50,7 +50,6 @@ container to apply (no hot-reload).
 
 | Key | Default | Values | Description |
 |---|---|---|---|
-| `ImportMode` | `"manualimport"` (recommended) | `"manualimport"` / `"scan"` | How Sonarr imports the hardlinked file. See "Import modes" below |
 | `AllowBugSnag` | `false` | bool | Master kill switch for BugSnag telemetry. Must be `true` **and** the nested `bugsnag.enabled` for telemetry to actually fire |
 | `APICredentials.bugsnag.enabled` | `false` | bool | Nested BugSnag toggle (paired with `AllowBugSnag`) |
 | `APICredentials.bugsnag.apiKey` | `""` | string | BugSnag API key (irrelevant unless both toggles above are true) |
@@ -77,26 +76,28 @@ forever. **For any F1 use case, keep this `true`.**
 The flag exists in upstream Formulaar1 for non-F1 use cases where Sonarr's
 parser would have worked fine on its own.
 
-### Import modes
+### Import flow
 
-#### `manualimport` (default since fix24)
+After qBit finishes the download, Formulaar1's monitor:
 
-- Hardlinks the file under `Hardlinkpath`
-- POSTs to `/api/v3/command` with `name: "ManualImport"` and explicit `episodeIds`
-- Polls `GET /api/v3/command/{id}` until completion
-- DELETEs the queue entry immediately on success (races CDH for a clean queue UX)
-- Falls back to the 30s smart cleanup if anything fails
+1. Hardlinks the file under `Hardlinkpath/<Series> - SxxExx/` with a renamed filename containing the SxxExx prefix so Sonarr's parser can map it
+2. Sends a `DownloadedEpisodesScan` command to Sonarr (`/api/v3/command`)
+3. Waits 30 seconds for Sonarr's CDH to do its thing
+4. Checks the Sonarr queue for entries matching this `downloadId` (qBit InfoHash):
+   - If status is `warning`/`error`, or `errorMessage` is set → DELETEs the entry (CDH got stuck; our scan already imported the file)
+   - If healthy → leaves it alone, Sonarr will manage it
+   - If gone → logs "cleared naturally" and exits
 
-#### `scan` (legacy fallback)
+This goes through Sonarr's full CDH pipeline, which handles file relocation
+to `Season YYYY/` and Sonarr-side renaming per your Media Management
+template.
 
-- Hardlinks the file
-- Sends `DownloadedEpisodesScan` command to Sonarr's command endpoint
-- Waits 30s for Sonarr's polling to settle
-- DELETEs queue entries flagged `warning`/`error`/with error message
-
-`scan` is kept as a safety valve. If `manualimport` ever misbehaves on
-your setup, flip back without a redeploy: change the value in
-`appsettings.json` and restart the container.
+History note: fix22–25 added an opt-in `ImportMode: "manualimport"` mode that
+dispatched `/api/v3/command name=ManualImport` instead. In testing it
+registered files in-place in the staging folder rather than relocating
+them to `Season YYYY/`, and didn't apply Sonarr's rename template. It was
+removed in fix27 — the scan path is now the only import flow, matching
+the upstream design.
 
 ---
 
@@ -107,12 +108,11 @@ your setup, flip back without a redeploy: change the value in
 ```json
 {
   "status": "ok",
-  "version": "v0.5.0-fix26",
+  "version": "v0.5.0-fix27",
   "uptimeSeconds": 12345,
   "torrentClient": "qBittorrent",
   "sonarrConfigured": true,
   "hardlinkingEnabled": true,
-  "importMode": "manualimport",
   "releasesInQueue": 0
 }
 ```
@@ -126,18 +126,15 @@ paths, or grab history leak through.
 
 Look for these prefixes when reading logs:
 
-- `[Config]` — startup config readout
 - `[QBit]` — qBit login / version diagnostics
 - `[F1API]` — circuit lookup table (loaded once at startup)
 - `[Sonarr]` — release-push decisions (accept/reject)
-- `[Hardlinking]` — monitor ticks, hardlink operations, queue cleanup
-- `[ManualImport]` — manualimport API calls (only in `manualimport` mode)
+- `[Hardlinking]` — monitor ticks, hardlink operations, scan dispatch, queue cleanup
 
 ### Startup
 
 | Line | Meaning |
 |---|---|
-| `[Config] Import mode: manualimport` | Which import path is active |
 | `Detected qBittorrent Client, attempting to login` | About to call qBit auth API |
 | `[QBit] Login OK, got session cookie 'QBT_SID_8080' (32 chars)` | qBit auth succeeded |
 | `Logged in to v5.2.0` | qBit version reachable via authenticated request |
@@ -179,37 +176,20 @@ Look for these prefixes when reading logs:
 | `[Hardlinking] qBit has no torrent with hash <hash> -- still being added? Will retry next tick.` | Hash mismatch (case? wrong client?) or qBit hasn't registered the torrent yet |
 | `[Hardlinking] Evicting stuck release after >24h` | Safety eviction: a release was queued >24h ago and never resolved. Indicates qBit/Sonarr connectivity issues or a dropped torrent |
 
-### Import — `manualimport` mode
+### Import (post-download)
 
 | Line | Meaning |
 |---|---|
 | `Hard Linking <src> to <dst>` | File hardlinked into Sonarr's library path with SxxExx-bearing name |
-| `[ManualImport] GET returned N suggestion(s) for <folder>` | Sonarr's manualimport scanner found N candidate files |
-| `[ManualImport] Skipping rejected item '<name>': <reasons>` | Sonarr flagged a candidate as not importable; reasons are Sonarr's text |
-| `[ManualImport] Item enriched: seriesId=... episodeIds=... quality='...' languages='...' releaseGroup='...' folderName='...'` | Diagnostic snapshot of the payload we're about to POST. **`folderName` should be an absolute path** — if it's a bare name, something's wrong with the GET |
-| `[ManualImport] Dispatched ManualImport command (id=N) for N file(s)` | Command POSTed to `/api/v3/command`, Sonarr acknowledged with command id |
-| `[ManualImport] Command N completed successfully` | Sonarr confirmed the import via command status polling |
-| `[ManualImport] Command N ended with status='failed' result='unsuccessful' exception=<text>` | Command ran but failed. The exception text is Sonarr's own — pass it to me when reporting |
-| `[ManualImport] Command N didn't finish within 30s -- moving on, smart cleanup pass will tidy up` | Polling timed out (Sonarr is slow or stuck); fallback cleanup runs |
-| `[ManualImport] Command-bus POST returned non-success: <body>` | The POST itself failed (4xx/5xx). The body is Sonarr's error |
-| `[ManualImport] No importable suggestions (...) Falling back to smart cleanup pass.` | GET returned items but all were rejected, or returned nothing useful |
+| `Sending Command:DownloadedEpisodesScan Mode:Auto Torrent:<name> for path "..."` | Scan command dispatched to Sonarr |
 
-### Import — `scan` mode
+### Queue cleanup (30s after scan)
 
 | Line | Meaning |
 |---|---|
-| `Hard Linking <src> to <dst>` | Same as manualimport mode |
-| `Sending Command:DownloadedEpisodesScan Mode:Auto Torrent:<name> for path "..."` | Sonarr scan command dispatched |
-
-### Queue cleanup (post-import)
-
-| Line | Meaning |
-|---|---|
-| `[Hardlinking] Deleted queue item N (reason: ManualImport command succeeded; status was <tds>/<state>)` | Race-winning DELETE fired. `status was ok/downloading` means we beat CDH; `status was warning/...` means CDH still got there first but we cleaned up |
-| `[Hardlinking] No queue item to delete for <hash> (reason: ...)` | Queue was already empty — Sonarr cleared it itself or polling hadn't seen the download |
-| `[Hardlinking] No queue item left for <hash> -- Sonarr cleared it naturally` | (Fallback cleanup path) Queue was empty when smart cleanup ran |
-| `[Hardlinking] Removed stuck Sonarr queue item N (status: warning, err: <msg>). File already imported via <mode>.` | (Fallback cleanup path) Stuck entry found and removed 30s after import |
-| `[Hardlinking] Queue item N for <hash> looks healthy (status: ok/...); leaving for Sonarr to manage` | (Fallback cleanup path) Entry was healthy, not stuck — Sonarr will handle it |
+| `[Hardlinking] No queue item left for <hash> -- Sonarr cleared it naturally` | Queue was empty when smart cleanup ran (Sonarr's CDH must have resolved it) |
+| `[Hardlinking] Removed stuck Sonarr queue item N (status: warning, err: <msg>). File already imported via scan.` | Stuck entry found and removed (CDH got confused parsing the qBit filename, but our scan already imported the file) |
+| `[Hardlinking] Queue item N for <hash> looks healthy (status: ok/...); leaving for Sonarr to manage` | Entry was healthy, not stuck — Sonarr will handle it |
 | `[Hardlinking] Queue empty — monitor idle.` | All releases processed, timer stops |
 
 ---
@@ -225,18 +205,12 @@ Look for these prefixes when reading logs:
 | `[Hardlinking] Evicting stuck release after >24h` | Something genuinely wrong — qBit lost the torrent, hash mismatch we can't fix, or Sonarr/qBit became unreachable mid-flight | Check qBit + Sonarr connectivity from the container |
 | Hardlink fails / "Hard link failed (code -1)" | qBit downloads and Sonarr library are on different filesystems | Both must be on the same mount inside the container. Verify `/data` mapping is identical across qBit, Sonarr, and Formulaar1 |
 | File imports but Sonarr UI doesn't reflect the new episode without a manual refresh | SignalR/WebSocket layer is broken end-to-end. Common cause: reverse proxy missing WebSocket upgrade headers, or Authentik proxy provider misconfigured | Browser DevTools → Network → filter "WS"; should see `wss://...signalr/messages` with status `101 Switching Protocols`. If missing, fix the proxy chain |
-| Series page doesn't show file at all (even after refresh) | Import path didn't actually run. Check the per-release log lines | Look for `[ManualImport] Command N completed successfully` or `Sending Command:DownloadedEpisodesScan` |
-| Queue stuck on a `warning` state forever | Cleanup pass didn't run, or Sonarr's CDH is misconfigured | Manually delete the queue entry in Sonarr's UI (it's safe — the file is on disk); check `manualimport` mode failure-path log lines |
+| Series page doesn't show file at all (even after refresh) | Import path didn't actually run. Check the per-release log lines | Look for `Sending Command:DownloadedEpisodesScan` — if it's missing, hardlink didn't fire or qBit completion wasn't detected |
+| Queue stuck on a `warning` state forever | Smart cleanup didn't run, or qBit returned 0 torrents for the hash | Manually delete the queue entry in Sonarr's UI (it's safe — the file is on disk). Check log for `[Hardlinking] qBit returned 1 torrent(s) for hash ... completionOn=...` |
 
 ---
 
 ## Operational recipes
-
-### Switch import modes without redeploying
-
-1. Edit `/mnt/user/appdata/formulaar1/appsettings.json` → change `"ImportMode"` value
-2. Restart the container: `docker restart formulaar1`
-3. Verify on startup: `[Config] Import mode: <new mode>`
 
 ### Pin to a specific version
 
@@ -284,7 +258,6 @@ Healzangels/Formulaar1         # fork repo (the actual app code)
 │   ├── SonarrEpisodeShim.cs             # direct-HTTP Sonarr episode API
 │   ├── SonarrHistoryShim.cs             # direct-HTTP Sonarr history API
 │   ├── SonarrQueueShim.cs               # direct-HTTP Sonarr queue API
-│   ├── SonarrManualImportShim.cs        # direct-HTTP Sonarr manualimport + command status
 │   └── QBittorrentShim.cs               # direct-HTTP qBit auth + torrent info
 └── appsettings.example.json
 ```

@@ -52,7 +52,6 @@ docker logs -f formulaar1
 
 On startup you should see:
 ```
-[Config] Import mode: manualimport
 Detected qBittorrent Client, attempting to login
 [QBit] Login OK, got session cookie 'QBT_SID_8080' (32 chars)
 Logged in to <version>
@@ -60,6 +59,8 @@ Logged in to <version>
 [Hardlinking] Enabled — timer will start when a release is queued.
 Now listening on: http://0.0.0.0:5000
 ```
+
+If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1Carreras you need it set to `true` — see OPERATIONS.md for why.
 
 If qBit login fails, the log will tell you exactly which way (added in
 fix20). Common cases:
