@@ -108,7 +108,7 @@ the upstream design.
 ```json
 {
   "status": "ok",
-  "version": "v0.5.0-fix27",
+  "version": "v0.5.0-fix28",
   "uptimeSeconds": 12345,
   "torrentClient": "qBittorrent",
   "sonarrConfigured": true,
