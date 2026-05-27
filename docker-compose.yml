@@ -21,9 +21,14 @@ services:
       - /mnt/user/appdata/formulaar1/appsettings.json:/app/appsettings.json
       # Media/downloads - SAME path mapping as qBittorrent & Sonarr so hardlinks work.
       - /mnt/user/data:/data
-    networks:
-      - cmacproxy
+    # If you have an existing external docker network you want Formulaar1 to
+    # join (so it can reach Sonarr/qBittorrent by container DNS name rather
+    # than by host IP), uncomment the networks block below and replace
+    # `my-bridge` with your network's name. The network must already exist
+    # (`docker network create my-bridge` if not).
+    # networks:
+    #   - my-bridge
 
-networks:
-  cmacproxy:
-    external: true
+# networks:
+#   my-bridge:
+#     external: true

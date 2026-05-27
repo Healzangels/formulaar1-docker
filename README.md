@@ -1,46 +1,43 @@
 # Formulaar1 Docker
 
-Unofficial Docker packaging of [Jimmy062006/Formulaar1](https://github.com/Jimmy062006/Formulaar1) for use on Unraid (or any Docker host).
+Unofficial Docker packaging of [Jimmy062006/Formulaar1](https://github.com/Jimmy062006/Formulaar1) with patches for current Sonarr v4 and qBittorrent 5.x. Intended for use on Unraid or any Docker host.
 
-Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a
-Sonarr instance; really it's pushing to Formulaar1, which translates the
-F1Carreras per-session release naming into the correct TVDB episode (via
-f1api.dev, with a built-in circuit-name fallback for COTA / Imola / UAE /
-British etc.) and then hands off to your real Sonarr with proper metadata.
+Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a Sonarr instance; really it's pushing to Formulaar1, which translates F1Carreras's per-session release naming into the correct TVDB episode (via f1api.dev, with a built-in circuit-name fallback for COTA / Imola / UAE / British etc.) and then hands off to your real Sonarr with proper metadata.
 
 Pipeline: `AutoBrr → Formulaar1 → Sonarr`
 
 ## Image
 
-Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch
-(`linux/amd64`, `linux/arm64`), built from the
-[`Healzangels/Formulaar1` fork](https://github.com/Healzangels/Formulaar1)
-(which patches upstream v0.5.0 for Sonarr v4 compatibility and qBit 5.x
-support) by the GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
+Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch (`linux/amd64`, `linux/arm64`), built from the [`Healzangels/Formulaar1` fork](https://github.com/Healzangels/Formulaar1) by the GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
+
+The fork patches upstream v0.5.0 for Sonarr v4 schema compatibility (bypassing the abandoned `APIv3SonarrDotcore` NuGet client's strict deserializers) and qBittorrent 5.x compatibility (replacing the abandoned `QBittorrent.Client` NuGet's broken `TorrentState` enum and handling the new `QBT_SID_<port>` cookie naming).
 
 Tags:
 - `healzangels/formulaar1:vX.Y.Z` — built from a specific fork tag (immutable, recommended for production pins). Current stable is `:v1.0.0`.
-- `healzangels/formulaar1:latest` — tip of `main` here, currently rolls to whatever the latest fix tag is
+- `healzangels/formulaar1:latest` — tip of `main` here, currently rolls forward as new versions are tagged
 - `healzangels/formulaar1:sha-<short>` — every commit on `main` gets a SHA tag for surgical rollbacks
 
-**For a homelab deploy I recommend pinning to a `v*` tag** — that way the image only changes when you choose to update it.
+**For a homelab deploy, pin to a `v*` tag** — the image then only changes when you choose to update it.
 
 For day-to-day operation, log line meaning, config reference, and troubleshooting, see [OPERATIONS.md](OPERATIONS.md).
 
 ## Quick start (Unraid)
 
 ### 1. Place the config
+
 ```bash
 mkdir -p /mnt/user/appdata/formulaar1
 cp appsettings.example.json /mnt/user/appdata/formulaar1/appsettings.json
 ```
 
 Edit `/mnt/user/appdata/formulaar1/appsettings.json` and fill in:
+
 - `APICredentials.Sonarr.ApiKey` — Sonarr → Settings → General → API Key
-- `APICredentials.Sonarr.BasePath` — e.g. `http://10.0.1.98:8989`
-- `APICredentials.qBittorrentClient.Username` / `Password`
-- `APICredentials.qBittorrentClient.BasePath` — **double-check the port.** Earlier seasonpackarr debugging found 8585 was wrong and the real qBit WebUI was on 8080. If first-run login fails, try 8080 before debugging anything else.
-- `Hardlinkpath` — path inside the container where Formulaar1 places hardlinks. Must be on the same mount as your downloads. `/data` here maps to `/mnt/user/data` on the host (identical to qBittorrent and Sonarr).
+- `APICredentials.Sonarr.BasePath` — your Sonarr URL, e.g. `http://<unraid-host>:8989`
+- `APICredentials.qBittorrentClient.Username` / `Password` — qBit WebUI credentials
+- `APICredentials.qBittorrentClient.BasePath` — qBit WebUI URL, e.g. `http://<unraid-host>:8080`
+- `EnableHardlinking` — **must be `true` for F1**; see OPERATIONS.md for why
+- `Hardlinkpath` — inside-container path where Formulaar1 places renamed hardlinks before triggering Sonarr's import. Typically points at your Sonarr series root, e.g. `/data/media/tv/Formula 1`. Must be on the same filesystem mount as qBit's download path.
 
 ### 2. Start it
 
@@ -51,66 +48,77 @@ docker logs -f formulaar1
 ```
 
 On startup you should see:
+
 ```
 Detected qBittorrent Client, attempting to login
 [QBit] Login OK, got session cookie 'QBT_SID_8080' (32 chars)
-Logged in to <version>
+Logged in to <qBittorrent version>
 [F1API] Loaded 24 circuits for current season.
 [Hardlinking] Enabled — timer will start when a release is queued.
 Now listening on: http://0.0.0.0:5000
 ```
 
-If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1Carreras you need it set to `true` — see OPERATIONS.md for why.
+If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1Carreras content this won't work — Sonarr's parser can't handle year-as-season filenames. Set it to `true`. See OPERATIONS.md for the full explanation.
 
-If qBit login fails, the log will tell you exactly which way (added in
-fix20). Common cases:
-- `[QBit] Login refused: HTTP 401/403 ...` — wrong creds, or qBit's auth-bypass whitelist doesn't cover the docker bridge subnet (Formulaar1 arrives as `172.18.x.x`, not your host LAN IP)
+If qBit login fails, the log identifies the specific cause:
+
+- `[QBit] Login refused: HTTP 401/403 ...` — wrong creds, or qBit's auth-bypass whitelist doesn't cover the docker bridge subnet (Formulaar1 arrives from the bridge IP range, not the host LAN IP). Add the bridge subnet to qBittorrent → Options → Web UI → "Bypass authentication for clients in whitelisted IP subnets."
 - `[QBit] Login failed (bad credentials?)` — wrong username/password
-- Wrong port — try 8080 if 8585 fails (or whatever your qBit WebUI port actually is)
+- Wrong port — the qBit WebUI port is whatever you configured in qBittorrent → Options → Web UI; verify it matches `BasePath` in your config
 
 See [OPERATIONS.md](OPERATIONS.md) for the full log line catalog and troubleshooting matrix.
 
 ### 3. Wire AutoBrr
 
 In AutoBrr → Settings → Clients → Add:
+
 - **Type:** Sonarr
 - **Name:** Formulaar1
-- **Host:** `http://10.0.1.98:5000` (or `http://formulaar1:5000` if AutoBrr is on `cmacproxy`)
+- **Host:** `http://<host>:5000` (or container DNS name if AutoBrr is on the same docker network)
 - **API Key:** your **normal Sonarr API key** (Formulaar1 forwards it)
 
 Click Test → expect green. Then point your F1 filter's action at this client instead of your real Sonarr.
 
-### 4. Filter design tips (F1Carreras)
+### 4. Filter design tips (AutoBrr)
+
+For SKY/MWR-style F1 releases (year-as-season filenames that Sonarr can't parse on its own):
 
 - Match: `Formula1`, `F1TV`, your resolution (e.g. `1080p` or `2160p`)
-- Match the session(s) you want: `Qualifying` / `Race` / `Sprint` / `FP1` ...
+- Match the session(s) you want: `Qualifying`, `Race`, `Sprint`, `FP1`, etc.
 - **Reject Spanish dupes:** `Castellano`, `es-ES` — F1Carreras posts International English + Castellano for every session
 - Decide all-7-sessions vs Quali+Race only, or it'll pull a lot per weekend
+- Send the action through Formulaar1 (this container)
+
+For F1Carreras-style releases (which already have `SxxExx` in the filename):
+
+- These releases parse cleanly in Sonarr without Formulaar1's title rewriting
+- You can optionally bypass this container and send the AutoBrr action straight to your real Sonarr
+- Or keep them routed through Formulaar1 for consistency — the hardlink step is redundant but harmless
 
 ## Building / publishing
 
 ### Trigger a publish
 
 Push to `main` → builds and publishes `:latest`.
-Tag the repo `vX.Y.Z` → builds upstream Formulaar1 `vX.Y.Z` and publishes that tag.
+Tag the repo `vX.Y.Z` → builds the corresponding fork tag and publishes that tag.
 
 ```bash
-git tag v0.5.0
+git tag v1.0.0
 git push --tags
 ```
 
-You can also run the workflow manually from the Actions tab and pass any upstream ref.
+You can also run the workflow manually from the Actions tab and pass a specific fork ref.
 
 ### One-time secret setup
 
-The workflow needs Docker Hub creds. In GitHub → Settings → Secrets and variables → Actions:
-- `DOCKERHUB_USERNAME` = `healzangels`
-- `DOCKERHUB_TOKEN` = a Docker Hub access token (Docker Hub → Account Settings → Personal access tokens → Generate, with **Read/Write** scope on the `healzangels/formulaar1` repo)
+The workflow needs Docker Hub credentials. In GitHub → Settings → Secrets and variables → Actions, add:
+
+- `DOCKERHUB_USERNAME` — your Docker Hub username
+- `DOCKERHUB_TOKEN` — a Docker Hub Personal Access Token (Docker Hub → Account Settings → Personal Access Tokens → Generate, with **Read/Write** scope on the target repo)
 
 ### Building locally instead
 
-If you'd rather skip the registry and build on the Unraid box, comment out
-`image:` in `docker-compose.yml` and uncomment the `build:` block, then:
+If you'd rather skip the registry and build on your Docker host directly, comment out the `image:` line in `docker-compose.yml` and uncomment the `build:` block, then:
 
 ```bash
 docker compose build
@@ -119,6 +127,7 @@ docker compose up -d
 
 ## Notes
 
-- Upstream is .NET 10. Base images: `mcr.microsoft.com/dotnet/sdk:10.0` and `mcr.microsoft.com/dotnet/aspnet:10.0`.
-- v0.5.0, single maintainer, small project. Expect rough edges — check the [upstream issues](https://github.com/Jimmy062006/Formulaar1/issues) if behaviour is odd.
-- Bump `DEFAULT_FORMULAAR1_REF` in the workflow (or just push a new git tag) when a new upstream release lands.
+- Upstream targets .NET 10. Base images: `mcr.microsoft.com/dotnet/sdk:10.0` and `mcr.microsoft.com/dotnet/aspnet:10.0`.
+- Upstream v0.5.0 is a small, single-maintainer project. This fork adds the patches needed for current Sonarr v4 + qBit 5.x. If a new upstream release ships, bump `DEFAULT_FORMULAAR1_REF` in the workflow (or rebase the fork) and tag a new version.
+- Hardlinking is supported on Linux, macOS, and Windows.
+- This is an unofficial packaging. Upstream issues: <https://github.com/Jimmy062006/Formulaar1/issues>. Issues with this fork or Docker packaging: <https://github.com/Healzangels/formulaar1-docker/issues>.

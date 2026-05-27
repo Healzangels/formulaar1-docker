@@ -38,10 +38,10 @@ container to apply (no hot-reload).
 | Key | Description |
 |---|---|
 | `APICredentials.Sonarr.ApiKey` | Sonarr's API key (Sonarr → Settings → General → API Key) |
-| `APICredentials.Sonarr.BasePath` | URL Sonarr can be reached at from inside the container, e.g. `http://10.0.1.98:8989` |
+| `APICredentials.Sonarr.BasePath` | URL Sonarr can be reached at from inside the container, e.g. `http://<host>:8989` |
 | `APICredentials.qBittorrentClient.Username` | qBit WebUI username |
 | `APICredentials.qBittorrentClient.Password` | qBit WebUI password |
-| `APICredentials.qBittorrentClient.BasePath` | qBit WebUI URL, e.g. `http://10.0.1.98:8080` (verify the port — common gotcha) |
+| `APICredentials.qBittorrentClient.BasePath` | qBit WebUI URL, e.g. `http://<host>:8080` (verify the port matches qBittorrent → Options → Web UI) |
 | `TorrentClient` | `"qBittorrent"` — only client supported |
 | `Hardlinkpath` | Inside-container path to Sonarr's series root for hardlinks, e.g. `/data/media/tv/Formula 1`. Must be on the same filesystem mount as qBit's download path. |
 | `EnableHardlinking` | `true` — must be `true` for F1Carreras pipelines to work (see note below) |
@@ -146,7 +146,7 @@ Look for these prefixes when reading logs:
 
 | Line | Meaning | Fix |
 |---|---|---|
-| `[QBit] Login refused: HTTP 401 Unauthorized` | qBit rejected the connection at auth | Check creds; check qBit's "Bypass auth for clients on localhost"; verify the WebUI's "Bypass auth for IP subnet" whitelist covers the docker bridge subnet (cmacproxy is 172.18.0.0/16) |
+| `[QBit] Login refused: HTTP 401 Unauthorized` | qBit rejected the connection at auth | Check creds; verify the qBittorrent → Options → Web UI "Bypass authentication for clients in whitelisted IP subnets" covers your docker bridge subnet (typically `172.18.0.0/16` or `172.17.0.0/16`). Formulaar1 arrives from the bridge IP range, not your host LAN IP |
 | `[QBit] Login refused: HTTP 403 Forbidden` | IP banned (too many failed logins?) or Referer mismatch | Check qBit logs; clear the IP ban in qBit settings; restart qBit if needed |
 | `[QBit] Login failed (bad credentials?): body='Fails.'` | qBit's standard "wrong username/password" response | Verify `Username` and `Password` in appsettings.json |
 | `[QBit] Login response had Set-Cookie headers but none matched 'SID=' or 'QBT_SID_'` | qBit returned a cookie we don't recognize (future qBit version with new naming?) | Open an issue — would need a shim update |
