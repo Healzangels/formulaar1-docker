@@ -92,13 +92,6 @@ This goes through Sonarr's full CDH pipeline, which handles file relocation
 to `Season YYYY/` and Sonarr-side renaming per your Media Management
 template.
 
-History note: fix22–25 added an opt-in `ImportMode: "manualimport"` mode that
-dispatched `/api/v3/command name=ManualImport` instead. In testing it
-registered files in-place in the staging folder rather than relocating
-them to `Season YYYY/`, and didn't apply Sonarr's rename template. It was
-removed in fix27 — the scan path is now the only import flow, matching
-the upstream design.
-
 ---
 
 ## The `/health` endpoint
@@ -142,7 +135,7 @@ Look for these prefixes when reading logs:
 | `[Hardlinking] Enabled — timer will start when a release is queued.` | Monitor timer registered (idle until a release arrives) |
 | `[Hardlinking] Disabled — Sonarr will handle file management.` | `EnableHardlinking: false`. **For F1 this means imports won't actually complete.** |
 
-### Login failures (added in fix20)
+### Login failures
 
 | Line | Meaning | Fix |
 |---|---|---|
@@ -201,7 +194,7 @@ Look for these prefixes when reading logs:
 | `[QBit] Login refused / failed` at startup | Wrong creds, wrong port, IP not whitelisted | Compare to "Login failures" table above |
 | `[Sonarr] REJECTED: ... Episode does not exist` | TVDB doesn't have that episode for the year. f1api round → TVDB episode mapping needs an update | Look at the f1api.dev data for that round/year; may need to refresh the circuit cache (restart container) |
 | `[Sonarr] REJECTED: ... Existing file on disk has a equal or higher CF score` | Already imported a version with equal/better Custom Format score | Normal — Sonarr's dedup. Delete the existing file in Sonarr if you genuinely want to replace it |
-| `[Hardlinking] qBit has no torrent with hash <hash>` for many ticks | Case mismatch (would have been fixed in fix9), or qBit didn't accept the torrent | Check qBit's UI for the torrent; check if AutoBrr's filter is configured to category-tag correctly |
+| `[Hardlinking] qBit has no torrent with hash <hash>` for many ticks | qBit didn't accept the torrent, or the torrent's category/path was never set | Check qBit's UI for the torrent; check if AutoBrr's filter is configured to category-tag correctly |
 | `[Hardlinking] Evicting stuck release after >24h` | Something genuinely wrong — qBit lost the torrent, hash mismatch we can't fix, or Sonarr/qBit became unreachable mid-flight | Check qBit + Sonarr connectivity from the container |
 | Hardlink fails / "Hard link failed (code -1)" | qBit downloads and Sonarr library are on different filesystems | Both must be on the same mount inside the container. Verify `/data` mapping is identical across qBit, Sonarr, and Formulaar1 |
 | File imports but Sonarr UI doesn't reflect the new episode without a manual refresh | SignalR/WebSocket layer is broken end-to-end. Common cause: reverse proxy missing WebSocket upgrade headers, or Authentik proxy provider misconfigured | Browser DevTools → Network → filter "WS"; should see `wss://...signalr/messages` with status `101 Switching Protocols`. If missing, fix the proxy chain |
@@ -231,9 +224,9 @@ If you push the same release from AutoBrr twice while the first import is still 
 1. In Sonarr, delete the queue entry (and the file if Sonarr imported it)
 2. Push the release again from AutoBrr
 
-### Roll back a fix
+### Roll back to a previous version
 
-Each fix is its own immutable Docker tag. To roll back, just change the tag in your Unraid template (or docker-compose) and restart the container. No state to migrate; appsettings.json is forward-compatible across fixes.
+Each version is its own immutable Docker tag. To roll back, change the tag in your Unraid template (or docker-compose) to a prior `:vX.Y.Z` and restart the container. No state to migrate; `appsettings.json` is forward/backward compatible across versions.
 
 ---
 

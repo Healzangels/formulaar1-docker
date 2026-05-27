@@ -10,14 +10,11 @@ Pipeline: `AutoBrr → Formulaar1 → Sonarr`
 
 Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch (`linux/amd64`, `linux/arm64`), built from the [`Healzangels/Formulaar1` fork](https://github.com/Healzangels/Formulaar1) by the GitHub Actions workflow in `.github/workflows/docker-publish.yml`.
 
-The fork patches upstream v0.5.0 for Sonarr v4 schema compatibility (bypassing the abandoned `APIv3SonarrDotcore` NuGet client's strict deserializers) and qBittorrent 5.x compatibility (replacing the abandoned `QBittorrent.Client` NuGet's broken `TorrentState` enum and handling the new `QBT_SID_<port>` cookie naming).
+The fork patches upstream v0.5.0 for current Sonarr v4 and qBittorrent 5.x compatibility (the bundled NuGet SDKs are abandoned and break on the newer schemas).
 
 Tags:
-- `healzangels/formulaar1:vX.Y.Z` — built from a specific fork tag (immutable, recommended for production pins). Current stable is `:v1.0.0`.
-- `healzangels/formulaar1:latest` — tip of `main` here, currently rolls forward as new versions are tagged
-- `healzangels/formulaar1:sha-<short>` — every commit on `main` gets a SHA tag for surgical rollbacks
-
-**For a homelab deploy, pin to a `v*` tag** — the image then only changes when you choose to update it.
+- `healzangels/formulaar1:vX.Y.Z` — specific version, immutable. Current stable is `:v1.0.0`. **Recommended for homelab deploys.**
+- `healzangels/formulaar1:latest` — rolling tag pointing at the most recent stable version
 
 For day-to-day operation, log line meaning, config reference, and troubleshooting, see [OPERATIONS.md](OPERATIONS.md).
 
@@ -95,39 +92,9 @@ For F1Carreras-style releases (which already have `SxxExx` in the filename):
 - You can optionally bypass this container and send the AutoBrr action straight to your real Sonarr
 - Or keep them routed through Formulaar1 for consistency — the hardlink step is redundant but harmless
 
-## Building / publishing
-
-### Trigger a publish
-
-Push to `main` → builds and publishes `:latest`.
-Tag the repo `vX.Y.Z` → builds the corresponding fork tag and publishes that tag.
-
-```bash
-git tag v1.0.0
-git push --tags
-```
-
-You can also run the workflow manually from the Actions tab and pass a specific fork ref.
-
-### One-time secret setup
-
-The workflow needs Docker Hub credentials. In GitHub → Settings → Secrets and variables → Actions, add:
-
-- `DOCKERHUB_USERNAME` — your Docker Hub username
-- `DOCKERHUB_TOKEN` — a Docker Hub Personal Access Token (Docker Hub → Account Settings → Personal Access Tokens → Generate, with **Read/Write** scope on the target repo)
-
-### Building locally instead
-
-If you'd rather skip the registry and build on your Docker host directly, comment out the `image:` line in `docker-compose.yml` and uncomment the `build:` block, then:
-
-```bash
-docker compose build
-docker compose up -d
-```
-
 ## Notes
 
-- Upstream targets .NET 10. Base images: `mcr.microsoft.com/dotnet/sdk:10.0` and `mcr.microsoft.com/dotnet/aspnet:10.0`.
-- Upstream v0.5.0 is a small, single-maintainer project. This fork adds the patches needed for current Sonarr v4 + qBit 5.x. If a new upstream release ships, bump `DEFAULT_FORMULAAR1_REF` in the workflow (or rebase the fork) and tag a new version.
-- Hardlinking is supported on Linux, macOS, and Windows.
-- This is an unofficial packaging. Upstream issues: <https://github.com/Jimmy062006/Formulaar1/issues>. Issues with this fork or Docker packaging: <https://github.com/Healzangels/formulaar1-docker/issues>.
+- This is an unofficial packaging. Upstream is a small, single-maintainer project — this fork adds the patches needed for current Sonarr v4 and qBit 5.x.
+- Issues with the underlying tool: <https://github.com/Jimmy062006/Formulaar1/issues>
+- Issues with this fork or Docker packaging: <https://github.com/Healzangels/formulaar1-docker/issues>
+- Build/publish is automated by `.github/workflows/docker-publish.yml` — pushes to `main` rebuild `:latest`, version tags rebuild the corresponding version tag. Read the workflow if you want to fork or self-host this packaging.
