@@ -1,8 +1,10 @@
 # Formulaar1 Docker
 
+[![Build and publish Docker image](https://github.com/Healzangels/formulaar1-docker/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Healzangels/formulaar1-docker/actions/workflows/docker-publish.yml)
+
 Unofficial Docker packaging of [Jimmy062006/Formulaar1](https://github.com/Jimmy062006/Formulaar1) with patches for current Sonarr v4 and qBittorrent 5.x. Intended for use on Unraid or any Docker host.
 
-Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a Sonarr instance; really it's pushing to Formulaar1, which translates F1Carreras's per-session release naming into the correct TVDB episode (via f1api.dev, with a built-in circuit-name fallback for COTA / Imola / UAE / British etc.) and then hands off to your real Sonarr with proper metadata.
+Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a Sonarr instance; really it's pushing to Formulaar1, which translates F1 releases that use non-standard episode numbering into the correct TVDB episode (via [f1api.dev](https://f1api.dev) for round/circuit lookup, with a built-in circuit-name fallback for COTA / Imola / UAE / British etc.) and hands off to your real Sonarr with the correct metadata.
 
 Pipeline: `AutoBrr → Formulaar1 → Sonarr`
 
@@ -55,7 +57,7 @@ Logged in to <qBittorrent version>
 Now listening on: http://0.0.0.0:5000
 ```
 
-If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1Carreras content this won't work — Sonarr's parser can't handle year-as-season filenames. Set it to `true`. See OPERATIONS.md for the full explanation.
+If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1 content this won't work — Sonarr's parser can't handle year-as-season release naming. Set it to `true`. See OPERATIONS.md for the full explanation.
 
 If qBit login fails, the log identifies the specific cause:
 
@@ -78,19 +80,15 @@ Click Test → expect green. Then point your F1 filter's action at this client i
 
 ### 4. Filter design tips (AutoBrr)
 
-For SKY/MWR-style F1 releases (year-as-season filenames that Sonarr can't parse on its own):
+Send F1 releases through Formulaar1 when the release naming uses year-as-season (e.g. `<year>.Round<NN>.<session>`) rather than `SxxExx`. Sonarr's parser can't determine the episode otherwise.
 
-- Match: `Formula1`, `F1TV`, your resolution (e.g. `1080p` or `2160p`)
-- Match the session(s) you want: `Qualifying`, `Race`, `Sprint`, `FP1`, etc.
-- **Reject Spanish dupes:** `Castellano`, `es-ES` — F1Carreras posts International English + Castellano for every session
-- Decide all-7-sessions vs Quali+Race only, or it'll pull a lot per weekend
-- Send the action through Formulaar1 (this container)
+If your source already publishes releases with an `SxxExx` pattern in the filename, those parse cleanly in Sonarr directly — you can optionally bypass Formulaar1 and point the AutoBrr action straight at Sonarr. Or keep them routed through Formulaar1 for consistency; the hardlink step is redundant but harmless.
 
-For F1Carreras-style releases (which already have `SxxExx` in the filename):
+General filter tuning:
 
-- These releases parse cleanly in Sonarr without Formulaar1's title rewriting
-- You can optionally bypass this container and send the AutoBrr action straight to your real Sonarr
-- Or keep them routed through Formulaar1 for consistency — the hardlink step is redundant but harmless
+- Match the session(s) you want: `Qualifying`, `Race`, `Sprint`, `FP1`, etc. — most weekends carry 5-7 sessions; pulling all of them adds up
+- Limit to a single resolution to avoid getting both 1080p and 2160p variants
+- Reject foreign-language dupes if your source publishes multiple language variants per session
 
 ## Notes
 
@@ -98,3 +96,7 @@ For F1Carreras-style releases (which already have `SxxExx` in the filename):
 - Issues with the underlying tool: <https://github.com/Jimmy062006/Formulaar1/issues>
 - Issues with this fork or Docker packaging: <https://github.com/Healzangels/formulaar1-docker/issues>
 - Build/publish is automated by `.github/workflows/docker-publish.yml` — pushes to `main` rebuild `:latest`, version tags rebuild the corresponding version tag. Read the workflow if you want to fork or self-host this packaging.
+
+## License
+
+GPL-3.0 — same as upstream Formulaar1. See [LICENSE](LICENSE).

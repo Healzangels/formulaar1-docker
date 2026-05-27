@@ -9,3 +9,6 @@ obj/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# AI/development context (local-only, not for publishing)
+CLAUDE.md

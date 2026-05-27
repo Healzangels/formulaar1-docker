@@ -10,21 +10,21 @@ breaks.
 ## Architecture (one paragraph)
 
 AutoBrr pushes a release to Formulaar1 (which it thinks is a Sonarr
-instance). Formulaar1 parses the F1Carreras filename, asks
+instance). Formulaar1 parses the release filename, asks
 [f1api.dev](https://f1api.dev) which round and session this is, maps that
 to the TVDB episode number for the year-season, **rewrites the release
-title to include `S2026E34`** (or whatever), and forwards to the real
-Sonarr's `/api/v3/release/push`. Sonarr accepts it and tells qBit to
-download. While qBit downloads, Formulaar1's monitor polls qBit every 10s
-for completion. When the torrent finishes, Formulaar1 hardlinks the file
-into Sonarr's library path with a Sonarr-friendly filename, then triggers
-the import via Sonarr's command bus. Smart queue cleanup mops up any stuck
+title to include the correct `SxxExx`**, and forwards to the real Sonarr's
+`/api/v3/release/push`. Sonarr accepts it and tells qBit to download.
+While qBit downloads, Formulaar1's monitor polls qBit every 10s for
+completion. When the torrent finishes, Formulaar1 hardlinks the file into
+Sonarr's library path with a Sonarr-friendly filename, then triggers the
+import via Sonarr's command bus. Smart queue cleanup mops up any stuck
 queue entry afterward.
 
-The whole reason this exists: Sonarr's parser can't reconcile F1Carreras's
-per-session numbering (FP1=E30, Qual=E33, Race=E34, etc.) with TVDB. Without
-the title rewrite + hardlink-with-renamed-file, Sonarr would either reject
-the release or import it to the wrong episode.
+The whole reason this exists: Sonarr's parser can't reconcile some F1
+sources' per-session sequential numbering with TVDB's canonical episode
+numbering. Without the title rewrite + hardlink-with-renamed-file, Sonarr
+would either reject the release or import it to the wrong episode.
 
 ---
 
@@ -44,7 +44,7 @@ container to apply (no hot-reload).
 | `APICredentials.qBittorrentClient.BasePath` | qBit WebUI URL, e.g. `http://<host>:8080` (verify the port matches qBittorrent → Options → Web UI) |
 | `TorrentClient` | `"qBittorrent"` — only client supported |
 | `Hardlinkpath` | Inside-container path to Sonarr's series root for hardlinks, e.g. `/data/media/tv/Formula 1`. Must be on the same filesystem mount as qBit's download path. |
-| `EnableHardlinking` | `true` — must be `true` for F1Carreras pipelines to work (see note below) |
+| `EnableHardlinking` | `true` — must be `true` for F1 content (see note below) |
 
 ### Optional
 
@@ -69,8 +69,9 @@ This flag gates Formulaar1's entire monitor + import pipeline. With it
 `false`, you're left with just the release-rewrite layer — AutoBrr pushes,
 Formulaar1 rewrites the title, Sonarr accepts and starts the download…
 and then Sonarr's Completed Download Handler tries to import the
-F1Carreras filename, fails to parse `Formula1.2026.Round05...` (year-2026
-trips Sonarr's parser), and leaves the file in qBit's complete folder
+original filename. For F1 releases that use year-as-season naming, Sonarr
+interprets the year as a season number followed by part of an episode
+number, fails the parse, and leaves the file in qBit's complete folder
 forever. **For any F1 use case, keep this `true`.**
 
 The flag exists in upstream Formulaar1 for non-F1 use cases where Sonarr's
