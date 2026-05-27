@@ -4,7 +4,7 @@
 
 Unofficial Docker packaging of [Jimmy062006/Formulaar1](https://github.com/Jimmy062006/Formulaar1) with patches for current Sonarr v4 and qBittorrent 5.x. Intended for use on Unraid or any Docker host.
 
-Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a Sonarr instance; really it's pushing to Formulaar1, which translates F1 releases that use non-standard episode numbering into the correct TVDB episode (via [f1api.dev](https://f1api.dev) for round/circuit lookup, with a built-in circuit-name fallback for COTA / Imola / UAE / British etc.) and hands off to your real Sonarr with the correct metadata.
+Formulaar1 sits between AutoBrr and Sonarr. AutoBrr thinks it's pushing to a Sonarr instance; really it's pushing to Formulaar1, which translates releases that use non-standard episode numbering into the correct TVDB episode (via an external round/circuit lookup API, with a built-in name fallback) and hands off to your real Sonarr with the correct metadata.
 
 Pipeline: `AutoBrr → Formulaar1 → Sonarr`
 
@@ -35,8 +35,8 @@ Edit `/mnt/user/appdata/formulaar1/appsettings.json` and fill in:
 - `APICredentials.Sonarr.BasePath` — your Sonarr URL, e.g. `http://<unraid-host>:8989`
 - `APICredentials.qBittorrentClient.Username` / `Password` — qBit WebUI credentials
 - `APICredentials.qBittorrentClient.BasePath` — qBit WebUI URL, e.g. `http://<unraid-host>:8080`
-- `EnableHardlinking` — **must be `true` for F1**; see OPERATIONS.md for why
-- `Hardlinkpath` — inside-container path where Formulaar1 places renamed hardlinks before triggering Sonarr's import. Typically points at your Sonarr series root, e.g. `/data/media/tv/Formula 1`. Must be on the same filesystem mount as qBit's download path.
+- `EnableHardlinking` — **must be `true`** for the tool to function; see OPERATIONS.md for why
+- `Hardlinkpath` — inside-container path where Formulaar1 places renamed hardlinks before triggering Sonarr's import. Typically points at the relevant Sonarr series root, e.g. `/data/media/tv/<your series>`. Must be on the same filesystem mount as qBit's download path.
 
 ### 2. Start it
 
@@ -57,7 +57,7 @@ Logged in to <qBittorrent version>
 Now listening on: http://0.0.0.0:5000
 ```
 
-If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. For F1 content this won't work — Sonarr's parser can't handle year-as-season release naming. Set it to `true`. See OPERATIONS.md for the full explanation.
+If you see `[Hardlinking] Disabled — Sonarr will handle file management.` instead of `Enabled`, your `appsettings.json` has `"EnableHardlinking": false`. This won't work for the release naming this tool handles — Sonarr's parser can't reconcile year-as-season releases. Set it to `true`. See OPERATIONS.md for the full explanation.
 
 If qBit login fails, the log identifies the specific cause:
 
@@ -76,11 +76,11 @@ In AutoBrr → Settings → Clients → Add:
 - **Host:** `http://<host>:5000` (or container DNS name if AutoBrr is on the same docker network)
 - **API Key:** your **normal Sonarr API key** (Formulaar1 forwards it)
 
-Click Test → expect green. Then point your F1 filter's action at this client instead of your real Sonarr.
+Click Test → expect green. Then point your AutoBrr filter's action at this client instead of your real Sonarr.
 
 ### 4. Filter design tips (AutoBrr)
 
-Send F1 releases through Formulaar1 when the release naming uses year-as-season (e.g. `<year>.Round<NN>.<session>`) rather than `SxxExx`. Sonarr's parser can't determine the episode otherwise.
+Route releases through Formulaar1 when the release naming uses year-as-season (e.g. `<year>.Round<NN>.<session>`) rather than `SxxExx`. Sonarr's parser can't determine the episode otherwise.
 
 If your source already publishes releases with an `SxxExx` pattern in the filename, those parse cleanly in Sonarr directly — you can optionally bypass Formulaar1 and point the AutoBrr action straight at Sonarr. Or keep them routed through Formulaar1 for consistency; the hardlink step is redundant but harmless.
 

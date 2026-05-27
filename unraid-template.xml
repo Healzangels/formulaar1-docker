@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/Healzangels/formulaar1-docker/issues</Support>
   <Project>https://github.com/Jimmy062006/Formulaar1</Project>
-  <Overview>Formulaar1 sits between AutoBrr and Sonarr to translate F1 releases with non-standard episode numbering into the correct TVDB episode (via f1api.dev for round/circuit lookup) and forward to Sonarr with the correct metadata.&#13;
+  <Overview>Formulaar1 sits between AutoBrr and Sonarr to translate releases with non-standard episode numbering into the correct TVDB episode (via an external round/circuit lookup API) and forward to Sonarr with the correct metadata.&#13;
 &#13;
 Pipeline:  AutoBrr  -->  Formulaar1  -->  Sonarr&#13;
 &#13;
@@ -28,7 +28,7 @@ Then in AutoBrr add a Sonarr-type client pointing at http://&lt;this-host&gt;:50
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Description>Formulaar1 sits between AutoBrr and Sonarr to translate F1 releases with non-standard episode numbering into the correct TVDB episode and forward to Sonarr with the correct metadata.</Description>
+  <Description>Formulaar1 sits between AutoBrr and Sonarr to translate releases with non-standard episode numbering into the correct TVDB episode and forward to Sonarr with the correct metadata.</Description>
   <Config Name="WebUI Port" Target="5000" Default="5000" Mode="tcp" Description="Port Formulaar1 listens on. AutoBrr's Sonarr-type client points at http://&lt;unraid-ip&gt;:&lt;this port&gt;." Type="Port" Display="always" Required="true" Mask="false">5000</Config>
   <Config Name="appsettings.json" Target="/app/appsettings.json" Default="/mnt/user/appdata/formulaar1/appsettings.json" Mode="rw" Description="Bind-mounts your configured appsettings.json into the container. Create this file BEFORE starting the container -- copy appsettings.example.json from the GitHub repo and fill in Sonarr API key, qBittorrent creds, and Hardlinkpath." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/formulaar1/appsettings.json</Config>
   <Config Name="Data Share" Target="/data" Default="/mnt/user/data" Mode="rw" Description="MUST match the path mapping used by qBittorrent and Sonarr so hardlinks work. /data inside the container should resolve to the same files on the host that the rest of your *arr stack sees." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/data</Config>

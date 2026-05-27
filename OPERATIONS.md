@@ -10,21 +10,22 @@ breaks.
 ## Architecture (one paragraph)
 
 AutoBrr pushes a release to Formulaar1 (which it thinks is a Sonarr
-instance). Formulaar1 parses the release filename, asks
-[f1api.dev](https://f1api.dev) which round and session this is, maps that
-to the TVDB episode number for the year-season, **rewrites the release
-title to include the correct `SxxExx`**, and forwards to the real Sonarr's
-`/api/v3/release/push`. Sonarr accepts it and tells qBit to download.
-While qBit downloads, Formulaar1's monitor polls qBit every 10s for
-completion. When the torrent finishes, Formulaar1 hardlinks the file into
-Sonarr's library path with a Sonarr-friendly filename, then triggers the
-import via Sonarr's command bus. Smart queue cleanup mops up any stuck
-queue entry afterward.
+instance). Formulaar1 parses the release filename, queries an external
+round/circuit lookup API, maps that to the TVDB episode number for the
+year-season, **rewrites the release title to include the correct
+`SxxExx`**, and forwards to the real Sonarr's `/api/v3/release/push`.
+Sonarr accepts it and tells qBit to download. While qBit downloads,
+Formulaar1's monitor polls qBit every 10s for completion. When the
+torrent finishes, Formulaar1 hardlinks the file into Sonarr's library
+path with a Sonarr-friendly filename, then triggers the import via
+Sonarr's command bus. Smart queue cleanup mops up any stuck queue entry
+afterward.
 
-The whole reason this exists: Sonarr's parser can't reconcile some F1
+The whole reason this exists: Sonarr's parser can't reconcile some
 sources' per-session sequential numbering with TVDB's canonical episode
-numbering. Without the title rewrite + hardlink-with-renamed-file, Sonarr
-would either reject the release or import it to the wrong episode.
+numbering. Without the title rewrite + hardlink-with-renamed-file,
+Sonarr would either reject the release or import it to the wrong
+episode.
 
 ---
 
@@ -43,8 +44,8 @@ container to apply (no hot-reload).
 | `APICredentials.qBittorrentClient.Password` | qBit WebUI password |
 | `APICredentials.qBittorrentClient.BasePath` | qBit WebUI URL, e.g. `http://<host>:8080` (verify the port matches qBittorrent → Options → Web UI) |
 | `TorrentClient` | `"qBittorrent"` — only client supported |
-| `Hardlinkpath` | Inside-container path to Sonarr's series root for hardlinks, e.g. `/data/media/tv/Formula 1`. Must be on the same filesystem mount as qBit's download path. |
-| `EnableHardlinking` | `true` — must be `true` for F1 content (see note below) |
+| `Hardlinkpath` | Inside-container path to the relevant Sonarr series root for hardlinks, e.g. `/data/media/tv/<your series>`. Must be on the same filesystem mount as qBit's download path. |
+| `EnableHardlinking` | `true` — required for this tool to function (see note below) |
 
 ### Optional
 
@@ -69,12 +70,12 @@ This flag gates Formulaar1's entire monitor + import pipeline. With it
 `false`, you're left with just the release-rewrite layer — AutoBrr pushes,
 Formulaar1 rewrites the title, Sonarr accepts and starts the download…
 and then Sonarr's Completed Download Handler tries to import the
-original filename. For F1 releases that use year-as-season naming, Sonarr
+original filename. For releases that use year-as-season naming, Sonarr
 interprets the year as a season number followed by part of an episode
 number, fails the parse, and leaves the file in qBit's complete folder
-forever. **For any F1 use case, keep this `true`.**
+forever. **For the releases this tool handles, keep this `true`.**
 
-The flag exists in upstream Formulaar1 for non-F1 use cases where Sonarr's
+The flag exists in upstream Formulaar1 for use cases where Sonarr's
 parser would have worked fine on its own.
 
 ### Import flow
@@ -121,7 +122,7 @@ paths, or grab history leak through.
 Look for these prefixes when reading logs:
 
 - `[QBit]` — qBit login / version diagnostics
-- `[F1API]` — circuit lookup table (loaded once at startup)
+- `[F1API]` — external round/circuit lookup (loaded once at startup)
 - `[Sonarr]` — release-push decisions (accept/reject)
 - `[Hardlinking]` — monitor ticks, hardlink operations, scan dispatch, queue cleanup
 
@@ -132,9 +133,9 @@ Look for these prefixes when reading logs:
 | `Detected qBittorrent Client, attempting to login` | About to call qBit auth API |
 | `[QBit] Login OK, got session cookie 'QBT_SID_8080' (32 chars)` | qBit auth succeeded |
 | `Logged in to v5.2.0` | qBit version reachable via authenticated request |
-| `[F1API] Loaded 24 circuits for current season` | f1api.dev returned the season's circuit list; circuit-name fallback is now armed |
+| `[F1API] Loaded N circuits for current season` | External lookup API returned the season's circuit list; name-based fallback is now armed |
 | `[Hardlinking] Enabled — timer will start when a release is queued.` | Monitor timer registered (idle until a release arrives) |
-| `[Hardlinking] Disabled — Sonarr will handle file management.` | `EnableHardlinking: false`. **For F1 this means imports won't actually complete.** |
+| `[Hardlinking] Disabled — Sonarr will handle file management.` | `EnableHardlinking: false`. **Imports won't actually complete for the releases this tool handles.** |
 
 ### Login failures
 
@@ -151,8 +152,8 @@ Look for these prefixes when reading logs:
 | Line | Meaning |
 |---|---|
 | `Processing` | Release pushed in from AutoBrr |
-| `ShowType: Race` | F1/F2/F3 series detection + session type |
-| `[Sonarr] Resolved series 'Formula 1' for tvdbId 387219 -> seriesId 1144` | Sonarr's seriesId lookup succeeded |
+| `ShowType: Race` | Series detection + session type |
+| `[Sonarr] Resolved series '<name>' for tvdbId <N> -> seriesId <N>` | Sonarr's seriesId lookup succeeded |
 | `[Sonarr] Push response: 1 decision(s)` | Sonarr's release-push endpoint returned a verdict |
 | `[Sonarr] ACCEPTED: <title>` | Release accepted into Sonarr's queue |
 | `[Sonarr] REJECTED: <title> -- <reason>` | Sonarr declined. Common reasons: "Existing file on disk has an equal or higher Custom Format score", "Episode does not exist". The reason is Sonarr's own text |
@@ -193,7 +194,7 @@ Look for these prefixes when reading logs:
 | Symptom | Most likely cause | Where to look |
 |---|---|---|
 | `[QBit] Login refused / failed` at startup | Wrong creds, wrong port, IP not whitelisted | Compare to "Login failures" table above |
-| `[Sonarr] REJECTED: ... Episode does not exist` | TVDB doesn't have that episode for the year. f1api round → TVDB episode mapping needs an update | Look at the f1api.dev data for that round/year; may need to refresh the circuit cache (restart container) |
+| `[Sonarr] REJECTED: ... Episode does not exist` | TVDB doesn't have that episode for the year. External lookup → TVDB episode mapping needs an update | Look at the external API's data for that round/year; may need to refresh the circuit cache (restart container) |
 | `[Sonarr] REJECTED: ... Existing file on disk has a equal or higher CF score` | Already imported a version with equal/better Custom Format score | Normal — Sonarr's dedup. Delete the existing file in Sonarr if you genuinely want to replace it |
 | `[Hardlinking] qBit has no torrent with hash <hash>` for many ticks | qBit didn't accept the torrent, or the torrent's category/path was never set | Check qBit's UI for the torrent; check if AutoBrr's filter is configured to category-tag correctly |
 | `[Hardlinking] Evicting stuck release after >24h` | Something genuinely wrong — qBit lost the torrent, hash mismatch we can't fix, or Sonarr/qBit became unreachable mid-flight | Check qBit + Sonarr connectivity from the container |
@@ -247,7 +248,7 @@ Healzangels/Formulaar1         # fork repo (the actual app code)
 ├── Formulaar1/
 │   ├── Program.cs                       # main app
 │   ├── Helpers.cs                       # series detection, country lookup
-│   ├── F1ApiClient.cs                   # f1api.dev integration
+│   ├── F1ApiClient.cs                   # external lookup API integration
 │   ├── SonarrSeriesShim.cs              # direct-HTTP Sonarr series API (bypasses broken SDK)
 │   ├── SonarrEpisodeShim.cs             # direct-HTTP Sonarr episode API
 │   ├── SonarrHistoryShim.cs             # direct-HTTP Sonarr history API
