@@ -15,7 +15,7 @@ Published to Docker Hub as **`healzangels/formulaar1`** — multi-arch (`linux/a
 The fork patches upstream v0.5.0 for current Sonarr v4 and qBittorrent 5.x compatibility (the bundled NuGet SDKs are abandoned and break on the newer schemas).
 
 Tags:
-- `healzangels/formulaar1:vX.Y.Z` — specific version, immutable. Current stable is `:v1.0.1`. **Recommended for homelab deploys.**
+- `healzangels/formulaar1:vX.Y.Z` — specific version, immutable. Current stable is `:v1.0.2`. **Recommended for homelab deploys.**
 - `healzangels/formulaar1:latest` — rolling tag pointing at the most recent stable version
 
 For day-to-day operation, log line meaning, config reference, and troubleshooting, see [OPERATIONS.md](OPERATIONS.md).
